@@ -1,15 +1,13 @@
 // ai audience builder - turns a natural language prompt into segment filters via gemini.
 // the model is just a translator: its output goes through the exact same zod schema and
 // preview service as human-created filters. it never touches the db and never writes sql.
-import { GoogleGenAI } from "@google/genai";
+import { generateJson } from "../lib/gemini";
 import {
   segmentFiltersSchema,
   formatZodError,
   type SegmentFilters,
 } from "../validators/segment.validator";
 import { previewSegment } from "./segment.service";
-
-const MODEL = "gemini-2.5-flash";
 
 // deliberately NO responseSchema here - constrained decoding measurably degraded the
 // translations (it hallucinated extra filters and put values on the wrong fields).
@@ -90,46 +88,18 @@ export type AiAudienceResult =
     }
   | { ok: false; error: "NOT_CONFIGURED" }
   | { ok: false; error: "AI_UNAVAILABLE" }
+  | { ok: false; error: "RATE_LIMITED" }
   | { ok: false; error: "INVALID_AI_OUTPUT"; details: { field: string; message: string }[] };
 
 export async function buildAudienceFromPrompt(prompt: string): Promise<AiAudienceResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return { ok: false, error: "NOT_CONFIGURED" };
+  // 1. natural language -> structured json
+  const generated = await generateJson(SYSTEM_PROMPT, prompt);
+  if (!generated.ok) return { ok: false, error: generated.error };
 
-  // 1. natural language -> structured json, one retry because transient api blips happen
-  const ai = new GoogleGenAI({ apiKey });
-  let text: string | undefined;
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const response = await ai.models.generateContent({
-        model: MODEL,
-        contents: prompt,
-        config: {
-          systemInstruction: SYSTEM_PROMPT,
-          responseMimeType: "application/json",
-          temperature: 0,
-        },
-      });
-      text = response.text;
-      break;
-    } catch (err) {
-      console.error(`gemini call failed (attempt ${attempt}):`, err instanceof Error ? err.message : err);
-      if (attempt === 2) return { ok: false, error: "AI_UNAVAILABLE" };
-    }
-  }
-
-  if (!text) {
-    return {
-      ok: false,
-      error: "INVALID_AI_OUTPUT",
-      details: [{ field: "(root)", message: "model returned an empty response" }],
-    };
-  }
-
-  // 2. parse - structured output should guarantee json, but never trust it blindly
+  // 2. parse - json mode should guarantee json, but never trust it blindly
   let raw: unknown;
   try {
-    raw = JSON.parse(text);
+    raw = JSON.parse(generated.text);
   } catch {
     return {
       ok: false,

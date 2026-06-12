@@ -6,6 +6,7 @@ import { segmentRoutes } from "./routes/segments";
 import { campaignRoutes } from "./routes/campaigns";
 import { deliveryRoutes } from "./routes/delivery";
 import { aiRoutes } from "./routes/ai";
+import { aiCampaignAnalystRoutes } from "./routes/ai-campaign-analyst";
 
 const app = new Hono();
 
@@ -17,6 +18,7 @@ app.route("/segments", segmentRoutes);
 app.route("/campaigns", campaignRoutes);
 app.route("/campaigns", deliveryRoutes);
 app.route("/ai", aiRoutes);
+app.route("/ai", aiCampaignAnalystRoutes);
 
 app.onError((err, c) => {
   console.error(err);

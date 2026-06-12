@@ -24,6 +24,8 @@ aiRoutes.post("/audience-builder", async (c) => {
         return c.json({ error: "ai is not configured, set GEMINI_API_KEY" }, 503);
       case "AI_UNAVAILABLE":
         return c.json({ error: "ai service is unavailable, try again shortly" }, 502);
+      case "RATE_LIMITED":
+        return c.json({ error: "ai quota exceeded, wait a minute and try again" }, 429);
       case "INVALID_AI_OUTPUT":
         return c.json(
           {

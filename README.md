@@ -179,7 +179,60 @@ Natural Language -> Gemini -> Filter JSON -> existing Zod schema -> existing pre
 - the system prompt pins the allowed fields (`city`, `loyaltyTier`, `churnRisk`, `favoriteDrink`, `rfmSegment`, `lifetimeSpend`, `totalOrders`, `daysSinceLastOrder`), the five operators (`equals`, `gt`, `gte`, `lt`, `lte`), the exact catalog values (drink names, cities, rfm segments) and interpretation rules ("a month is 30 days", "high-value means lifetimeSpend > 5000")
 - Gemini's `responseSchema` constrained decoding is deliberately NOT used - in testing it degraded translation quality (hallucinated filters, values on wrong fields); `responseMimeType: application/json` + strict Zod validation works reliably
 
-Error handling: `400` bad request body, `422` when the model output fails validation or the request can't be expressed with supported filters (with details), `502` when Gemini is unreachable (one automatic retry first), `503` when `GEMINI_API_KEY` is missing. Stack traces never leak.
+Error handling: `400` bad request body, `422` when the model output fails validation or the request can't be expressed with supported filters (with details), `429` when the Gemini quota is exhausted, `502` when Gemini is unreachable (one automatic retry first), `503` when `GEMINI_API_KEY` is missing. Stack traces never leak.
+
+## AI Campaign Analyst
+
+The second AI-native feature. Analyzes a campaign's real performance data and explains what happened, why it happened, and what to do next. The AI is a reasoning layer only - every number comes from the existing campaign analytics service and the model is forbidden from inventing metrics.
+
+**POST /ai/campaign-analyst**
+
+```json
+{
+  "campaignId": "cmqaof2dp0000gg7kt1f73brf"
+}
+```
+
+Response:
+
+```json
+{
+  "campaign": { "id": "...", "name": "Cold Brew Second Chance", "channel": "WHATSAPP", "status": "COMPLETED" },
+  "metrics": {
+    "audienceSize": 167,
+    "sent": 167,
+    "delivered": 145,
+    "failed": 22,
+    "opened": 108,
+    "clicked": 13,
+    "deliveryRate": 86.8,
+    "openRate": 74.5,
+    "clickRate": 9,
+    "clickToOpenRate": 12,
+    "segmentBreakdown": { "At Risk": 76, "Lost Customer": 61, "Loyal Customer": 20, "Big Spender": 10 }
+  },
+  "analysis": {
+    "summary": "2-4 sentence performance summary",
+    "keyInsights": ["3 findings explaining why the campaign performed this way"],
+    "recommendations": ["3 actionable next steps grounded in the data"]
+  }
+}
+```
+
+### Design
+
+```
+campaignId -> existing getCampaignAnalytics() -> facts JSON -> Gemini -> Zod-validated analysis -> response
+```
+
+- no second analytics engine - the fact base is built from the same `getCampaignAnalytics()` used by `GET /campaigns/:id/analytics`, plus the campaign content (subject/body)
+- the model only sees the supplied facts and is instructed to never invent numbers or claim unsupplied information (no revenue, no conversions)
+- the system prompt includes platform context so the reasoning is grounded: typical per-channel open/delivery rates and what each rfm segment means, so "74.5% open on WhatsApp is on par, 9% click is well above the ~5% baseline" type conclusions are possible
+- the analysis shape (`summary`, `keyInsights[]`, `recommendations[]`) is enforced by a strict Zod schema - invalid model output returns `422`, never reaches the client
+
+Error handling matches the audience builder: `400` / `404` (unknown campaign) / `422` / `429` / `502` / `503`.
+
+Both AI features share one Gemini helper (`src/lib/gemini.ts`): `gemini-2.5-flash`, temperature 0, JSON mode, one retry on transient failures (but not on rate limits).
 
 ## Project structure
 
