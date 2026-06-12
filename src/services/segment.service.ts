@@ -75,20 +75,40 @@ export async function createSegment(input: {
   description?: string;
   rules: SegmentFilters;
 }) {
-  return prisma.segment.create({
+  const segment = await prisma.segment.create({
     data: {
       name: input.name,
       description: input.description,
       rules: input.rules as Prisma.InputJsonValue,
     },
-    select: { id: true, name: true, description: true, rules: true, createdAt: true },
+    select: { id: true, name: true, description: true, rules: true },
   });
+
+  return {
+    id: segment.id,
+    name: segment.name,
+    description: segment.description,
+    rules: input.rules,
+  };
 }
 
 export async function listSegments() {
-  return prisma.segment.findMany({
-    select: { id: true, name: true, createdAt: true },
+  const segments = await prisma.segment.findMany({
+    select: { id: true, name: true, description: true, rules: true },
     orderBy: { createdAt: "desc" },
+  });
+
+  return segments.flatMap((segment) => {
+    const parsed = segmentFiltersSchema.safeParse(segment.rules);
+    if (!parsed.success) return [];
+    return [
+      {
+        id: segment.id,
+        name: segment.name,
+        description: segment.description,
+        rules: parsed.data,
+      },
+    ];
   });
 }
 
@@ -110,5 +130,12 @@ export async function getSegmentWithAudience(id: string) {
     where: buildWhereClause(parsed.data as SegmentFilters),
   });
 
-  return { ...segment, audienceSize, invalidRules: false as const };
+  return {
+    id: segment.id,
+    name: segment.name,
+    description: segment.description,
+    rules: parsed.data,
+    audienceSize,
+    invalidRules: false as const,
+  };
 }

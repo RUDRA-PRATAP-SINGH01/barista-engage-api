@@ -1,7 +1,9 @@
 // api entry point
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import { logger } from "hono/logger";
+import { cors } from "hono/cors";
+import { requestLogger } from "./middleware/request-logger";
+import { apiError } from "./lib/response";
 import { segmentRoutes } from "./routes/segments";
 import { campaignRoutes } from "./routes/campaigns";
 import { deliveryRoutes } from "./routes/delivery";
@@ -10,7 +12,16 @@ import { aiCampaignAnalystRoutes } from "./routes/ai-campaign-analyst";
 
 const app = new Hono();
 
-app.use(logger());
+app.use(
+  "*",
+  cors({
+    origin: "http://localhost:5173",
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+  }),
+);
+
+app.use("*", requestLogger);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
@@ -22,7 +33,7 @@ app.route("/ai", aiCampaignAnalystRoutes);
 
 app.onError((err, c) => {
   console.error(err);
-  return c.json({ error: "internal server error" }, 500);
+  return apiError(c, "internal server error", 500);
 });
 
 const port = Number(process.env.PORT ?? 3000);

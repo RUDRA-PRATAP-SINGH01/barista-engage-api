@@ -11,6 +11,8 @@ import {
   listSegments,
   getSegmentWithAudience,
 } from "../services/segment.service";
+import { apiSuccess, apiError, validationErrorMessage } from "../lib/response";
+import { toSegmentDto, toSegmentListItemDto } from "../types/dto";
 
 export const segmentRoutes = new Hono();
 
@@ -18,48 +20,48 @@ export const segmentRoutes = new Hono();
 segmentRoutes.post("/preview", async (c) => {
   const body = await c.req.json().catch(() => null);
   if (body === null) {
-    return c.json({ error: "invalid json body" }, 400);
+    return apiError(c, "invalid json body", 400);
   }
 
   const parsed = previewSegmentSchema.safeParse(body);
   if (!parsed.success) {
-    return c.json({ error: "validation failed", details: formatZodError(parsed.error) }, 400);
+    return apiError(c, validationErrorMessage(formatZodError(parsed.error)), 400);
   }
 
   const result = await previewSegment(parsed.data.filters);
-  return c.json(result);
+  return apiSuccess(c, result);
 });
 
 // save a reusable segment
 segmentRoutes.post("/", async (c) => {
   const body = await c.req.json().catch(() => null);
   if (body === null) {
-    return c.json({ error: "invalid json body" }, 400);
+    return apiError(c, "invalid json body", 400);
   }
 
   const parsed = createSegmentSchema.safeParse(body);
   if (!parsed.success) {
-    return c.json({ error: "validation failed", details: formatZodError(parsed.error) }, 400);
+    return apiError(c, validationErrorMessage(formatZodError(parsed.error)), 400);
   }
 
   const segment = await createSegment(parsed.data);
-  return c.json(segment, 201);
+  return apiSuccess(c, toSegmentListItemDto(segment), 200);
 });
 
-// list all saved segments, no audience counts here
+// list all saved segments
 segmentRoutes.get("/", async (c) => {
   const segments = await listSegments();
-  return c.json(segments);
+  return apiSuccess(c, segments.map(toSegmentListItemDto));
 });
 
 // one segment with its rules + live audience size
 segmentRoutes.get("/:id", async (c) => {
   const segment = await getSegmentWithAudience(c.req.param("id"));
   if (!segment) {
-    return c.json({ error: "segment not found" }, 404);
+    return apiError(c, "segment not found", 404);
   }
   if (segment.invalidRules) {
-    return c.json({ error: "stored segment rules are invalid, re-create the segment" }, 422);
+    return apiError(c, "stored segment rules are invalid, re-create the segment", 422);
   }
-  return c.json(segment);
+  return apiSuccess(c, toSegmentDto(segment));
 });

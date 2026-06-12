@@ -5,6 +5,8 @@ import {
   simulateCampaign,
   getCampaignAnalytics,
 } from "../services/delivery.service";
+import { apiSuccess, apiError } from "../lib/response";
+import { toAnalyticsDto } from "../types/dto";
 
 export const deliveryRoutes = new Hono();
 
@@ -12,36 +14,38 @@ export const deliveryRoutes = new Hono();
 deliveryRoutes.post("/:id/send", async (c) => {
   const result = await sendCampaign(c.req.param("id"));
   if (!result.ok) {
-    if (result.error === "NOT_FOUND") return c.json({ error: "campaign not found" }, 404);
-    return c.json(
-      { error: `campaign is ${result.status}, only DRAFT campaigns can be sent` },
-      409,
+    if (result.error === "NOT_FOUND") return apiError(c, "campaign not found", 404);
+    return apiError(
+      c,
+      `campaign is ${result.status}, only DRAFT campaigns can be sent`,
+      400,
     );
   }
-  return c.json({ campaignId: result.campaignId, communicationsSent: result.communicationsSent });
+  return apiSuccess(c, {
+    campaignId: result.campaignId,
+    communicationsSent: result.communicationsSent,
+  });
 });
 
 // simulate delivery + engagement for every sent communication
 deliveryRoutes.post("/:id/simulate", async (c) => {
   const result = await simulateCampaign(c.req.param("id"));
   if (!result.ok) {
-    if (result.error === "NOT_FOUND") return c.json({ error: "campaign not found" }, 404);
-    return c.json(
-      {
-        error:
-          result.status === "DRAFT"
-            ? "campaign has not been sent yet, call /send first"
-            : `campaign is ${result.status}, simulation already ran`,
-      },
-      409,
+    if (result.error === "NOT_FOUND") return apiError(c, "campaign not found", 404);
+    return apiError(
+      c,
+      result.status === "DRAFT"
+        ? "campaign has not been sent yet, call /send first"
+        : `campaign is ${result.status}, simulation already ran`,
+      400,
     );
   }
-  return c.json(result);
+  return apiSuccess(c, result);
 });
 
 // aggregated campaign performance
 deliveryRoutes.get("/:id/analytics", async (c) => {
   const analytics = await getCampaignAnalytics(c.req.param("id"));
-  if (!analytics) return c.json({ error: "campaign not found" }, 404);
-  return c.json(analytics);
+  if (!analytics) return apiError(c, "campaign not found", 404);
+  return apiSuccess(c, toAnalyticsDto(analytics));
 });
