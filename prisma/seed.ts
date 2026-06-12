@@ -42,40 +42,41 @@ const STORE_AREAS: Record<string, string[]> = {
   Kolkata: ["Park Street", "Salt Lake", "New Town", "Ballygunge"],
 };
 
-const PRODUCTS: { name: string; category: string; price: number }[] = [
+// weight = how popular the item is, classics sell way more than specialty stuff
+const PRODUCTS: { name: string; category: string; price: number; weight: number }[] = [
   // Hot Coffee
-  { name: "Espresso", category: "Hot Coffee", price: 120 },
-  { name: "Americano", category: "Hot Coffee", price: 150 },
-  { name: "Cappuccino", category: "Hot Coffee", price: 180 },
-  { name: "Latte", category: "Hot Coffee", price: 190 },
-  { name: "Hazelnut Latte", category: "Hot Coffee", price: 220 },
-  { name: "Caramel Latte", category: "Hot Coffee", price: 220 },
-  { name: "Mocha", category: "Hot Coffee", price: 210 },
-  { name: "Flat White", category: "Hot Coffee", price: 200 },
+  { name: "Espresso", category: "Hot Coffee", price: 120, weight: 45 },
+  { name: "Americano", category: "Hot Coffee", price: 150, weight: 70 },
+  { name: "Cappuccino", category: "Hot Coffee", price: 180, weight: 100 },
+  { name: "Latte", category: "Hot Coffee", price: 190, weight: 85 },
+  { name: "Hazelnut Latte", category: "Hot Coffee", price: 220, weight: 30 },
+  { name: "Caramel Latte", category: "Hot Coffee", price: 220, weight: 28 },
+  { name: "Mocha", category: "Hot Coffee", price: 210, weight: 45 },
+  { name: "Flat White", category: "Hot Coffee", price: 200, weight: 32 },
   // Cold Coffee
-  { name: "Cold Brew", category: "Cold Coffee", price: 240 },
-  { name: "Iced Americano", category: "Cold Coffee", price: 180 },
-  { name: "Iced Latte", category: "Cold Coffee", price: 210 },
-  { name: "Classic Frappe", category: "Cold Coffee", price: 250 },
-  { name: "Caramel Frappe", category: "Cold Coffee", price: 270 },
-  { name: "Iced Mocha", category: "Cold Coffee", price: 240 },
+  { name: "Cold Brew", category: "Cold Coffee", price: 240, weight: 60 },
+  { name: "Iced Americano", category: "Cold Coffee", price: 180, weight: 38 },
+  { name: "Iced Latte", category: "Cold Coffee", price: 210, weight: 48 },
+  { name: "Classic Frappe", category: "Cold Coffee", price: 250, weight: 35 },
+  { name: "Caramel Frappe", category: "Cold Coffee", price: 270, weight: 25 },
+  { name: "Iced Mocha", category: "Cold Coffee", price: 240, weight: 20 },
   // Tea
-  { name: "Masala Chai", category: "Tea", price: 100 },
-  { name: "Green Tea", category: "Tea", price: 120 },
-  { name: "Earl Grey", category: "Tea", price: 130 },
-  { name: "Iced Lemon Tea", category: "Tea", price: 150 },
+  { name: "Masala Chai", category: "Tea", price: 100, weight: 55 },
+  { name: "Green Tea", category: "Tea", price: 120, weight: 22 },
+  { name: "Earl Grey", category: "Tea", price: 130, weight: 12 },
+  { name: "Iced Lemon Tea", category: "Tea", price: 150, weight: 18 },
   // Food
-  { name: "Veg Sandwich", category: "Food", price: 180 },
-  { name: "Chicken Sandwich", category: "Food", price: 220 },
-  { name: "Butter Croissant", category: "Food", price: 160 },
-  { name: "Paneer Wrap", category: "Food", price: 200 },
-  { name: "Pasta Alfredo", category: "Food", price: 280 },
+  { name: "Veg Sandwich", category: "Food", price: 180, weight: 35 },
+  { name: "Chicken Sandwich", category: "Food", price: 220, weight: 30 },
+  { name: "Butter Croissant", category: "Food", price: 160, weight: 40 },
+  { name: "Paneer Wrap", category: "Food", price: 200, weight: 22 },
+  { name: "Pasta Alfredo", category: "Food", price: 280, weight: 12 },
   // Desserts
-  { name: "Blueberry Muffin", category: "Desserts", price: 140 },
-  { name: "Chocolate Brownie", category: "Desserts", price: 160 },
-  { name: "New York Cheesecake", category: "Desserts", price: 220 },
-  { name: "Chocolate Chip Cookie", category: "Desserts", price: 90 },
-  { name: "Tiramisu", category: "Desserts", price: 250 },
+  { name: "Blueberry Muffin", category: "Desserts", price: 140, weight: 28 },
+  { name: "Chocolate Brownie", category: "Desserts", price: 160, weight: 42 },
+  { name: "New York Cheesecake", category: "Desserts", price: 220, weight: 18 },
+  { name: "Chocolate Chip Cookie", category: "Desserts", price: 90, weight: 32 },
+  { name: "Tiramisu", category: "Desserts", price: 250, weight: 10 },
 ];
 
 const FIRST_NAMES = [
@@ -122,8 +123,22 @@ async function main() {
 
   // ---------- products ----------
   const products = PRODUCTS.map((p) => ({ id: randomUUID(), ...p, isActive: true }));
-  await prisma.product.createMany({ data: products });
+  // weight is only for the seed logic, not a real db column
+  await prisma.product.createMany({
+    data: products.map(({ weight, ...p }) => p),
+  });
   console.log(`Products: ${products.length}`);
+
+  // pick products based on popularity so bestsellers actually dominate
+  const totalProductWeight = products.reduce((s, p) => s + p.weight, 0);
+  const pickProduct = () => {
+    let r = rand() * totalProductWeight;
+    for (const p of products) {
+      r -= p.weight;
+      if (r <= 0) return p;
+    }
+    return products[products.length - 1];
+  };
 
   // ---------- customers ----------
   const customers = Array.from({ length: 5000 }, (_, i) => {
@@ -180,7 +195,7 @@ async function main() {
     let total = 0;
     const itemCount = weighted([[1, 45], [2, 35], [3, 15], [4, 5]]);
     for (let j = 0; j < itemCount; j++) {
-      const product = pick(products);
+      const product = pickProduct();
       const quantity = rand() < 0.85 ? 1 : 2;
       total += product.price * quantity;
       orderItems.push({ orderId, productId: product.id, quantity, unitPrice: product.price });

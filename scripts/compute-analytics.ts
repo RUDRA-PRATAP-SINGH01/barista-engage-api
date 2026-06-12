@@ -38,8 +38,10 @@ function hash01(id: string): number {
 function rfmSegment(hasOrders: boolean, r: number, f: number, m: number): string {
   if (!hasOrders || r <= 1) return "Lost Customer";
   if (r === 2) return "At Risk";
-  if (f >= 4 && m >= 4) return "Champion";
-  if (m >= 4) return "Big Spender";
+  // champions should feel rare, so the bar is high - recent + frequent + top spend
+  if (r >= 4 && f >= 5 && m >= 4) return "Champion";
+  // big spender also needs to be rare - top spend bracket, or very recent frequent near-top spenders
+  if (m === 5 || (m === 4 && f >= 4 && r === 5)) return "Big Spender";
   return "Loyal Customer";
 }
 
