@@ -55,6 +55,14 @@ Builds the `CustomerAnalytics` table (one row per customer) from order history:
 
 Safe to re-run anytime, it rebuilds the whole table.
 
+The script also closes the feedback loop - it aggregates real campaign results from communications into `messagesSent`, `messagesOpened`, `messagesClicked`, `openRate`, `clickRate`, `lastCampaignInteractionAt`, and derives `actualPreferredChannel` from observed opens. Run it after campaigns to make future targeting smarter.
+
+```bash
+npm run db:insights
+```
+
+Populates `CustomerInsight` with a persona (Coffee Enthusiast, Deal Hunter, Premium Sipper, Lapsed Customer, etc.) and a marketing summary for every customer, rule-based from analytics. The delivery simulator uses these personas to modify click probabilities.
+
 To eyeball the numbers:
 
 ```bash
@@ -125,6 +133,12 @@ Snapshots the audience size and creates one PENDING communication per matched cu
 **GET /campaigns/:id** - campaign metadata + content + audience snapshot
 
 **GET /campaigns/:id/communications** - communication records with `limit` (default 50, max 200) and `offset` pagination
+
+**POST /campaigns/:id/send** - launch a DRAFT campaign, flips it to SENDING and marks every communication SENT
+
+**POST /campaigns/:id/simulate** - runs the delivery + engagement simulator. outcomes are driven by customer analytics (rfm segment, churn risk, preferred channel, lifetime spend, persona) and channel base rates, not plain randomness. deterministic - seeded by campaignId + customerId so reruns give identical results. flips the campaign to COMPLETED.
+
+**GET /campaigns/:id/analytics** - aggregated performance: sent / delivered / failed / opened / clicked counts, deliveryRate, openRate, clickRate, clickToOpenRate and an rfm segment breakdown of the audience
 
 ## Project structure
 

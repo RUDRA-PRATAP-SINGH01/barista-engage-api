@@ -98,6 +98,45 @@ async function main() {
     }
   }
 
+  // engagement feedback loop - aggregate what actually happened in past campaigns
+  const engagementRows = await prisma.$queryRaw<
+    {
+      customerId: string;
+      sent: number;
+      opened: number;
+      clicked: number;
+      lastOpened: Date | null;
+      lastClicked: Date | null;
+    }[]
+  >`
+    SELECT "customerId",
+      COUNT(*) FILTER (WHERE "status" <> 'PENDING')::int AS sent,
+      COUNT(*) FILTER (WHERE "status" IN ('OPENED', 'CLICKED'))::int AS opened,
+      COUNT(*) FILTER (WHERE "status" = 'CLICKED')::int AS clicked,
+      MAX("openedAt") AS "lastOpened",
+      MAX("clickedAt") AS "lastClicked"
+    FROM "Communication"
+    GROUP BY "customerId"
+  `;
+  const engagement = new Map(engagementRows.map((e) => [e.customerId, e]));
+
+  // real channel preference = the channel they open the most
+  const channelOpens = await prisma.$queryRaw<
+    { customerId: string; channel: Channel; opens: number }[]
+  >`
+    SELECT "customerId", "channel", COUNT(*)::int AS opens
+    FROM "Communication"
+    WHERE "status" IN ('OPENED', 'CLICKED')
+    GROUP BY "customerId", "channel"
+  `;
+  const observedChannel = new Map<string, { channel: Channel; opens: number }>();
+  for (const row of channelOpens) {
+    const current = observedChannel.get(row.customerId);
+    if (!current || row.opens > current.opens) {
+      observedChannel.set(row.customerId, { channel: row.channel, opens: row.opens });
+    }
+  }
+
   // percentile baselines, only from customers who actually ordered something
   const recencyDays = orderAgg
     .map((a) => Math.floor((NOW - a._max.orderedAt!.getTime()) / MS_PER_DAY))
@@ -119,10 +158,20 @@ async function main() {
     const f = agg ? quintileScore(totalOrders, frequencies) : 1;
     const m = agg ? quintileScore(lifetimeSpend, monetaries) : 1;
 
-    // v1 stub - mostly whatsapp for now, will compute this properly once communications exist
+    // channel preference - observed from real opens when we have them,
+    // otherwise the deterministic stub until this customer gets some campaign history
     const roll = hash01(c.id);
-    const actualPreferredChannel: Channel =
-      roll < 0.75 ? "WHATSAPP" : roll < 0.9 ? "EMAIL" : "SMS";
+    const stubChannel: Channel = roll < 0.75 ? "WHATSAPP" : roll < 0.9 ? "EMAIL" : "SMS";
+    const actualPreferredChannel = observedChannel.get(c.id)?.channel ?? stubChannel;
+
+    // engagement metrics from past campaigns, rates stored as percentages
+    const eng = engagement.get(c.id);
+    const messagesSent = eng?.sent ?? 0;
+    const messagesOpened = eng?.opened ?? 0;
+    const messagesClicked = eng?.clicked ?? 0;
+    const lastInteractions = [eng?.lastOpened, eng?.lastClicked].filter(
+      (d): d is Date => d != null,
+    );
 
     return {
       customerId: c.id,
@@ -139,13 +188,15 @@ async function main() {
       lastOrderAt,
       daysSinceLastOrder,
       actualPreferredChannel,
-      // no communications yet so everything stays 0
-      messagesSent: 0,
-      messagesOpened: 0,
-      messagesClicked: 0,
-      openRate: 0,
-      clickRate: 0,
-      lastCampaignInteractionAt: null,
+      messagesSent,
+      messagesOpened,
+      messagesClicked,
+      openRate: messagesSent > 0 ? Math.round((messagesOpened / messagesSent) * 1000) / 10 : 0,
+      clickRate: messagesSent > 0 ? Math.round((messagesClicked / messagesSent) * 1000) / 10 : 0,
+      lastCampaignInteractionAt:
+        lastInteractions.length > 0
+          ? new Date(Math.max(...lastInteractions.map((d) => d.getTime())))
+          : null,
       computedAt: new Date(),
     };
   });

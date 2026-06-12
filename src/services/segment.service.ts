@@ -1,7 +1,7 @@
 // segmentation engine - turns filter json into prisma where clauses and runs them
 import { prisma } from "../lib/prisma";
 import type { Prisma } from "../../generated/prisma/client";
-import type { SegmentFilters } from "../validators/segment.validator";
+import { segmentFiltersSchema, type SegmentFilters } from "../validators/segment.validator";
 
 const SAMPLE_SIZE = 20;
 
@@ -99,10 +99,16 @@ export async function getSegmentWithAudience(id: string) {
   });
   if (!segment) return null;
 
-  // rules were validated at creation time, safe to evaluate directly
+  // same philosophy as campaign launch - never trust stored json blindly,
+  // a corrupted row should surface as a clean error, not a crash
+  const parsed = segmentFiltersSchema.safeParse(segment.rules);
+  if (!parsed.success) {
+    return { ...segment, audienceSize: null, invalidRules: true as const };
+  }
+
   const audienceSize = await prisma.customer.count({
-    where: buildWhereClause(segment.rules as SegmentFilters),
+    where: buildWhereClause(parsed.data as SegmentFilters),
   });
 
-  return { ...segment, audienceSize };
+  return { ...segment, audienceSize, invalidRules: false as const };
 }

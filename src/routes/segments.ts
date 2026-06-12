@@ -58,5 +58,8 @@ segmentRoutes.get("/:id", async (c) => {
   if (!segment) {
     return c.json({ error: "segment not found" }, 404);
   }
+  if (segment.invalidRules) {
+    return c.json({ error: "stored segment rules are invalid, re-create the segment" }, 422);
+  }
   return c.json(segment);
 });
