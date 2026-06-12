@@ -4,6 +4,7 @@
   "description": "backend for barista os - ai native customer engagement platform for barista coffee",
   "main": "index.js",
   "scripts": {
+    "dev": "tsx watch src/index.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:analytics": "tsx scripts/compute-analytics.ts",
     "db:sanity": "tsx scripts/sanity-checks.ts"
@@ -13,6 +14,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@hono/node-server": "^2.0.4",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "dotenv": "^17.4.2",

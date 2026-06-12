@@ -61,9 +61,60 @@ To eyeball the numbers:
 npm run db:sanity
 ```
 
+## Running the API
+
+```bash
+npm run dev
+```
+
+Starts the Hono server on http://localhost:3000.
+
+### Endpoints
+
+**POST /segments/preview** - preview an audience before saving
+
+```json
+{
+  "filters": {
+    "churnRisk": "HIGH",
+    "favoriteDrink": "Cold Brew",
+    "lifetimeSpend": { "gt": 5000 }
+  }
+}
+```
+
+Returns `count` + up to 20 `sampleCustomers` (sorted by lifetime spend).
+
+**POST /segments** - save a reusable segment
+
+```json
+{
+  "name": "High Value Cold Brew Lovers",
+  "rules": { "churnRisk": "HIGH", "lifetimeSpend": { "gt": 5000 } }
+}
+```
+
+**GET /segments** - list all segments (id, name, createdAt)
+
+**GET /segments/:id** - segment metadata + rules + live `audienceSize`
+
+### Supported filters (v1)
+
+- customer fields - `city`, `loyaltyTier`
+- analytics fields - `churnRisk`, `favoriteDrink`, `rfmSegment`, `lifetimeSpend`, `totalOrders`, `daysSinceLastOrder`
+- numeric fields take either a plain number or `{ equals, gt, gte, lt, lte }`
+
+Unknown fields, bad operators and malformed payloads get rejected with a 400 and a list of what's wrong.
+
 ## Project structure
 
 ```
+src/
+  index.ts            # hono server entry
+  routes/             # route handlers, thin layer
+  services/           # business logic + query building
+  validators/         # zod schemas for request validation
+  lib/prisma.ts       # shared prisma client
 prisma/
   schema.prisma       # the data model
   seed.ts             # dev seed script
