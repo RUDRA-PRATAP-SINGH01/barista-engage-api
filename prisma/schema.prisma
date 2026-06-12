@@ -1,0 +1,246 @@
+// barista os data model
+// one rule i am strict about - source tables only store raw facts,
+// anything derived goes into CustomerAnalytics / CustomerInsight
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- enums ----------
+
+enum LoyaltyTier {
+  BRONZE
+  SILVER
+  GOLD
+}
+
+enum Channel {
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  COMPLETED
+}
+
+enum CommunicationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  FAILED
+}
+
+enum ChurnRisk {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// ---------- core entities ----------
+
+model Customer {
+  id        String    @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String    @unique
+  phone     String?
+  city      String?
+  birthday  DateTime?
+  joinedAt  DateTime  @default(now())
+
+  // loyalty stuff
+  loyaltyTier   LoyaltyTier @default(BRONZE)
+  loyaltyPoints Int         @default(0)
+
+  // this is what they picked at signup, the real preference gets computed in analytics
+  declaredPreferredChannel Channel @default(EMAIL)
+  marketingOptIn           Boolean @default(true)
+
+  orders         Order[]
+  communications Communication[]
+  analytics      CustomerAnalytics?
+  insight        CustomerInsight?
+}
+
+model Store {
+  id      String @id @default(cuid())
+  name    String
+  city    String
+  address String
+
+  orders Order[]
+}
+
+model Product {
+  id       String  @id @default(cuid())
+  name     String
+  category String
+  price    Decimal @db.Decimal(10, 2)
+  isActive Boolean @default(true)
+
+  orderItems OrderItem[]
+}
+
+model Order {
+  id          String   @id @default(cuid())
+  customerId  String
+  storeId     String
+  orderedAt   DateTime @default(now())
+  totalAmount Decimal  @db.Decimal(10, 2)
+
+  customer Customer    @relation(fields: [customerId], references: [id])
+  store    Store       @relation(fields: [storeId], references: [id])
+  items    OrderItem[]
+
+  @@index([customerId])
+  @@index([storeId])
+  @@index([orderedAt])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  unitPrice Decimal @db.Decimal(10, 2)
+
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+// ---------- campaign flow ----------
+
+model Segment {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  // filter rules as json, these run against customers + analytics
+  rules       Json
+  createdAt   DateTime @default(now())
+
+  campaigns Campaign[]
+}
+
+model Campaign {
+  id          String         @id @default(cuid())
+  name        String
+  description String?
+  segmentId   String
+  channel     Channel
+  status      CampaignStatus @default(DRAFT)
+
+  // message content
+  subject  String?
+  body     String
+  imageUrl String?
+
+  // how many customers we targeted when the campaign launched
+  targetAudienceSize Int?
+
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  segment        Segment         @relation(fields: [segmentId], references: [id])
+  communications Communication[]
+
+  @@index([segmentId])
+  @@index([status])
+}
+
+model Communication {
+  id         String              @id @default(cuid())
+  campaignId String
+  customerId String
+  channel    Channel
+  status     CommunicationStatus @default(PENDING)
+
+  // the actual personalized message that went out to this customer
+  subject  String?
+  body     String
+  imageUrl String?
+
+  // delivery lifecycle, one timestamp per stage
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  openedAt    DateTime?
+  clickedAt   DateTime?
+  failedAt    DateTime?
+  createdAt   DateTime  @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([campaignId])
+  @@index([customerId])
+  @@index([status])
+}
+
+// ---------- derived intelligence, never duplicated back into source tables ----------
+
+model CustomerAnalytics {
+  id         String @id @default(cuid())
+  customerId String @unique
+
+  // rfm scores
+  recencyScore   Int
+  frequencyScore Int
+  monetaryScore  Int
+  rfmSegment     String
+
+  churnRisk ChurnRisk
+
+  // purchase metrics, all computed from order history
+  favoriteDrink      String?
+  favoriteStoreId    String? // the store they visit the most
+  lifetimeSpend      Decimal   @db.Decimal(12, 2)
+  totalOrders        Int
+  avgOrderValue      Decimal   @db.Decimal(10, 2)
+  lastOrderAt        DateTime?
+  daysSinceLastOrder Int?
+
+  // computed from engagement history, different from what they declared at signup
+  actualPreferredChannel Channel?
+
+  // engagement metrics from communications
+  messagesSent              Int       @default(0)
+  messagesOpened            Int       @default(0)
+  messagesClicked           Int       @default(0)
+  openRate                  Float     @default(0)
+  clickRate                 Float     @default(0)
+  lastCampaignInteractionAt DateTime?
+
+  computedAt DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([churnRisk])
+  @@index([rfmSegment])
+  @@index([favoriteStoreId])
+}
+
+model CustomerInsight {
+  id         String @id @default(cuid())
+  customerId String @unique
+
+  persona          String
+  marketingSummary String
+
+  generatedAt DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+}
