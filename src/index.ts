@@ -5,6 +5,7 @@ import { logger } from "hono/logger";
 import { segmentRoutes } from "./routes/segments";
 import { campaignRoutes } from "./routes/campaigns";
 import { deliveryRoutes } from "./routes/delivery";
+import { aiRoutes } from "./routes/ai";
 
 const app = new Hono();
 
@@ -15,6 +16,7 @@ app.get("/health", (c) => c.json({ status: "ok" }));
 app.route("/segments", segmentRoutes);
 app.route("/campaigns", campaignRoutes);
 app.route("/campaigns", deliveryRoutes);
+app.route("/ai", aiRoutes);
 
 app.onError((err, c) => {
   console.error(err);

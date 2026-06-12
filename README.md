@@ -140,13 +140,54 @@ Snapshots the audience size and creates one PENDING communication per matched cu
 
 **GET /campaigns/:id/analytics** - aggregated performance: sent / delivered / failed / opened / clicked counts, deliveryRate, openRate, clickRate, clickToOpenRate and an rfm segment breakdown of the audience
 
+## AI Audience Builder
+
+The first AI-native feature. Marketers describe an audience in natural language and Gemini translates the intent into structured segment filters. Requires `GEMINI_API_KEY` in `.env` (uses `gemini-2.5-flash` via `@google/genai`).
+
+**POST /ai/audience-builder**
+
+```json
+{
+  "prompt": "Find customers who love cold brew, haven't visited in 60 days, and spent more than 5000 rupees."
+}
+```
+
+Response:
+
+```json
+{
+  "generatedFilters": {
+    "favoriteDrink": "Cold Brew",
+    "daysSinceLastOrder": { "gt": 60 },
+    "lifetimeSpend": { "gt": 5000 }
+  },
+  "audienceSize": 3,
+  "sampleCustomers": ["..."]
+}
+```
+
+### Design
+
+The AI is just a translator, never a query engine:
+
+```
+Natural Language -> Gemini -> Filter JSON -> existing Zod schema -> existing previewSegment() -> audience
+```
+
+- the model never touches the database and never writes SQL - it only emits filter JSON
+- its output is validated by the **same** `segmentFiltersSchema` used by `POST /segments/preview` and `POST /segments`, so AI segments and manual segments share one implementation - no AI-specific filter logic exists
+- the system prompt pins the allowed fields (`city`, `loyaltyTier`, `churnRisk`, `favoriteDrink`, `rfmSegment`, `lifetimeSpend`, `totalOrders`, `daysSinceLastOrder`), the five operators (`equals`, `gt`, `gte`, `lt`, `lte`), the exact catalog values (drink names, cities, rfm segments) and interpretation rules ("a month is 30 days", "high-value means lifetimeSpend > 5000")
+- Gemini's `responseSchema` constrained decoding is deliberately NOT used - in testing it degraded translation quality (hallucinated filters, values on wrong fields); `responseMimeType: application/json` + strict Zod validation works reliably
+
+Error handling: `400` bad request body, `422` when the model output fails validation or the request can't be expressed with supported filters (with details), `502` when Gemini is unreachable (one automatic retry first), `503` when `GEMINI_API_KEY` is missing. Stack traces never leak.
+
 ## Project structure
 
 ```
 src/
   index.ts            # hono server entry
   routes/             # route handlers, thin layer
-  services/           # business logic + query building
+  services/           # business logic + query building (incl. ai-audience.service)
   validators/         # zod schemas for request validation
   lib/prisma.ts       # shared prisma client
 prisma/
