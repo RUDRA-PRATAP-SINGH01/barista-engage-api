@@ -106,6 +106,26 @@ Returns `count` + up to 20 `sampleCustomers` (sorted by lifetime spend).
 
 Unknown fields, bad operators and malformed payloads get rejected with a 400 and a list of what's wrong.
 
+**POST /campaigns** - create a campaign from a saved segment
+
+```json
+{
+  "name": "Win Back Cold Brew Lovers",
+  "segmentId": "segment-id",
+  "channel": "WHATSAPP",
+  "subject": "Your Cold Brew misses you",
+  "body": "Come back this weekend and enjoy 20% off"
+}
+```
+
+Snapshots the audience size and creates one PENDING communication per matched customer, all inside a single transaction. Returns `campaignId`, `targetAudienceSize`, `communicationsCreated` and `status`.
+
+**GET /campaigns** - all campaigns, newest first
+
+**GET /campaigns/:id** - campaign metadata + content + audience snapshot
+
+**GET /campaigns/:id/communications** - communication records with `limit` (default 50, max 200) and `offset` pagination
+
 ## Project structure
 
 ```
