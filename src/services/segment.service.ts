@@ -112,6 +112,25 @@ export async function listSegments() {
   });
 }
 
+export async function listSegmentsWithAudience() {
+  const segments = await listSegments();
+
+  return Promise.all(
+    segments.map(async (segment) => {
+      const audienceSize = await prisma.customer.count({
+        where: buildWhereClause(segment.rules),
+      });
+      return {
+        id: segment.id,
+        name: segment.name,
+        description: segment.description,
+        rules: segment.rules,
+        audienceSize,
+      };
+    }),
+  );
+}
+
 export async function getSegmentWithAudience(id: string) {
   const segment = await prisma.segment.findUnique({
     where: { id },

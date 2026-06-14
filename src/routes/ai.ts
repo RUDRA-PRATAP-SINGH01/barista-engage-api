@@ -1,4 +1,5 @@
 // ai routes - thin handlers, the gemini + validation pipeline lives in ai-audience.service
+// POST /ai/audience-builder is the stable frontend contract — do not remove without migration.
 import { Hono } from "hono";
 import { audienceBuilderSchema, formatZodError } from "../validators/ai.validator";
 import { buildAudienceFromPrompt } from "../services/ai-audience.service";

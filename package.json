@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:report": "tsx prisma/seed.ts",
     "db:analytics": "tsx scripts/compute-analytics.ts",
     "db:insights": "tsx scripts/generate-insights.ts",
-    "db:sanity": "tsx scripts/sanity-checks.ts"
+    "db:sanity": "tsx scripts/sanity-checks.ts",
+    "test": "tsx --test tests/**/*.test.ts"
   },
   "keywords": [],
   "author": "",
