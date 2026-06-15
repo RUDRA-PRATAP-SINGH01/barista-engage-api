@@ -10,7 +10,17 @@ export const createCampaignSchema = z
     // subject is optional for sms/whatsapp, email campaigns usually want one
     subject: z.string().min(1).max(150).nullish(),
     body: z.string().min(1, "body is required").max(2000),
-    imageUrl: z.url("imageUrl must be a valid url").nullish(),
+    imageUrl: z
+      .string()
+      .min(1)
+      .refine(
+        (url) =>
+          url.startsWith("http://") ||
+          url.startsWith("https://") ||
+          url.startsWith("data:image/"),
+        "imageUrl must be an http(s) url or data:image base64",
+      )
+      .nullish(),
   })
   .strict();
 

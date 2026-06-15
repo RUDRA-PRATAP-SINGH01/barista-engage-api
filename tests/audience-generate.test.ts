@@ -5,12 +5,15 @@ import {
   blueprintFiltersToSegmentFilters,
   segmentFiltersToBlueprintFilters,
 } from "../src/audience-intelligence/utils/blueprint-to-segment-filters";
+import { deriveQualityMultipliers } from "../src/audience-intelligence/utils/audience-quality-multipliers";
 import { AudienceRoiForecastService } from "../src/audience-intelligence/services/audience-roi-forecast.service";
 import { AudienceStrategyService } from "../src/audience-intelligence/services/audience-strategy.service";
 import { AudienceGenerateService } from "../src/audience-intelligence/services/audience-generate.service";
 import type { AudienceBlueprintProvider } from "../src/audience-intelligence/providers/audience-blueprint.provider";
 import type { AudienceBlueprint } from "../src/audience-intelligence/types/audience-blueprint.types";
+import type { AudienceEconomics } from "../src/audience-intelligence/types/audience-economics.types";
 import { AudiencePreviewService } from "../src/audience-intelligence/services/audience-preview.service";
+import { AudienceEconomicsService } from "../src/audience-intelligence/services/audience-economics.service";
 import { AudienceRoiForecastService as RoiService } from "../src/audience-intelligence/services/audience-roi-forecast.service";
 import { AudienceStrategyService as StrategyService } from "../src/audience-intelligence/services/audience-strategy.service";
 
@@ -35,6 +38,30 @@ class MockBlueprintProvider implements AudienceBlueprintProvider {
     return { ok: true as const, blueprint: this.blueprint };
   }
 }
+
+const populationEconomics: AudienceEconomics = {
+  audienceSize: 5000,
+  averageLifetimeSpend: 3200,
+  averageOrderValue: 280,
+  averageOrdersPerCustomer: 12,
+  averageDaysSinceLastOrder: 35,
+};
+
+const highValueAudienceEconomics: AudienceEconomics = {
+  audienceSize: 400,
+  averageLifetimeSpend: 9000,
+  averageOrderValue: 420,
+  averageOrdersPerCustomer: 22,
+  averageDaysSinceLastOrder: 12,
+};
+
+const churnedAudienceEconomics: AudienceEconomics = {
+  audienceSize: 400,
+  averageLifetimeSpend: 1800,
+  averageOrderValue: 210,
+  averageOrdersPerCustomer: 6,
+  averageDaysSinceLastOrder: 120,
+};
 
 describe("audienceBlueprintSchema", () => {
   it("accepts a valid blueprint", () => {
@@ -77,14 +104,27 @@ describe("blueprintFiltersToSegmentFilters", () => {
   });
 });
 
+describe("deriveQualityMultipliers", () => {
+  it("boosts response and conversion for recent, high-value frequent buyers", () => {
+    const multipliers = deriveQualityMultipliers(highValueAudienceEconomics, populationEconomics);
+    const churned = deriveQualityMultipliers(churnedAudienceEconomics, populationEconomics);
+
+    assert.ok(multipliers.responseMultiplier > churned.responseMultiplier);
+    assert.ok(multipliers.conversionMultiplier > churned.conversionMultiplier);
+    assert.ok(multipliers.revenueMultiplier > churned.revenueMultiplier);
+  });
+});
+
 describe("AudienceRoiForecastService", () => {
   const forecast = new AudienceRoiForecastService();
 
-  it("produces formula-based ROI and conversions", () => {
+  it("produces formula-based ROI and conversions using audience economics", () => {
     const result = forecast.forecast({
       audienceSize: 400,
       channel: "WhatsApp",
       objective: "WIN_BACK",
+      audienceEconomics: highValueAudienceEconomics,
+      populationEconomics,
     });
 
     assert.ok(result.expectedReach > 0);
@@ -95,9 +135,41 @@ describe("AudienceRoiForecastService", () => {
     assert.ok(result.roi > 0);
   });
 
-  it("returns higher ROI for larger audiences with same channel", () => {
-    const small = forecast.forecast({ audienceSize: 50, channel: "WhatsApp", objective: "WIN_BACK" });
-    const large = forecast.forecast({ audienceSize: 500, channel: "WhatsApp", objective: "WIN_BACK" });
+  it("returns materially higher revenue for high-value audiences than churned audiences", () => {
+    const highValue = forecast.forecast({
+      audienceSize: 400,
+      channel: "WhatsApp",
+      objective: "WIN_BACK",
+      audienceEconomics: highValueAudienceEconomics,
+      populationEconomics,
+    });
+    const churned = forecast.forecast({
+      audienceSize: 400,
+      channel: "WhatsApp",
+      objective: "WIN_BACK",
+      audienceEconomics: churnedAudienceEconomics,
+      populationEconomics,
+    });
+
+    assert.ok(highValue.expectedRevenueImpact.max > churned.expectedRevenueImpact.max * 1.5);
+    assert.ok(highValue.expectedConversions >= churned.expectedConversions);
+  });
+
+  it("returns higher ROI for larger audiences with same economics", () => {
+    const small = forecast.forecast({
+      audienceSize: 50,
+      channel: "WhatsApp",
+      objective: "WIN_BACK",
+      audienceEconomics: highValueAudienceEconomics,
+      populationEconomics,
+    });
+    const large = forecast.forecast({
+      audienceSize: 500,
+      channel: "WhatsApp",
+      objective: "WIN_BACK",
+      audienceEconomics: highValueAudienceEconomics,
+      populationEconomics,
+    });
     assert.ok(large.expectedRevenueImpact.max > small.expectedRevenueImpact.max);
   });
 });
@@ -111,6 +183,8 @@ describe("AudienceStrategyService", () => {
       audienceSize: 412,
       channel: "WhatsApp",
       objective: "WIN_BACK",
+      audienceEconomics: churnedAudienceEconomics,
+      populationEconomics,
     });
 
     const result = strategy.buildStrategy(
@@ -144,9 +218,20 @@ describe("AudienceGenerateService", () => {
       }
     }
 
+    class MockEconomicsService extends AudienceEconomicsService {
+      override async computeForFilters() {
+        return churnedAudienceEconomics;
+      }
+
+      override async getPopulationBaseline() {
+        return populationEconomics;
+      }
+    }
+
     const service = new AudienceGenerateService(
       new MockBlueprintProvider(winBackBlueprint),
       new FailingPreviewService(),
+      new MockEconomicsService(),
       new RoiService(),
       new StrategyService(),
     );

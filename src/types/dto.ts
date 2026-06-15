@@ -1,6 +1,5 @@
 // strongly typed response DTOs for frontend integration
 import type { SegmentFilters } from "../validators/segment.validator";
-import type { CampaignAnalysis } from "../validators/ai.validator";
 
 export type CampaignDto = {
   id: string;
@@ -66,12 +65,6 @@ export type AiAudienceDto = {
   generatedFilters: SegmentFilters;
   audienceSize: number;
   sampleCustomers: SegmentPreviewDto["sampleCustomers"];
-};
-
-export type AiCampaignAnalystDto = {
-  campaign: { id: string; name: string; channel: string; status: string };
-  metrics: AnalyticsDto & { audienceSize: number };
-  analysis: CampaignAnalysis;
 };
 
 export function toCampaignDto(campaign: {

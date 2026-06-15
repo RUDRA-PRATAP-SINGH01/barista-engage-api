@@ -10,14 +10,27 @@ export type ApiSuccessResponse<T> = {
 export type ApiErrorResponse = {
   success: false;
   message: string;
+  errorCode?: string;
 };
 
 export function apiSuccess<T>(c: Context, data: T, status: ContentfulStatusCode = 200) {
   return c.json({ success: true as const, data }, status);
 }
 
-export function apiError(c: Context, message: string, status: ContentfulStatusCode) {
-  return c.json({ success: false as const, message }, status);
+export function apiError(
+  c: Context,
+  message: string,
+  status: ContentfulStatusCode,
+  errorCode?: string,
+) {
+  return c.json(
+    {
+      success: false as const,
+      message,
+      ...(errorCode ? { errorCode } : {}),
+    },
+    status,
+  );
 }
 
 export function validationErrorMessage(

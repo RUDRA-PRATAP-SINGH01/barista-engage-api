@@ -522,50 +522,6 @@ Convert natural language to segment filters and preview the audience.
 
 ---
 
-### `POST /ai/campaign-analyst`
-
-Analyze campaign performance with AI-generated insights.
-
-**Request body:**
-
-```typescript
-{
-  campaignId: string; // required, must exist
-}
-```
-
-**Response `data`:**
-
-```typescript
-{
-  campaign: {
-    id: string;
-    name: string;
-    channel: string;
-    status: string;
-  };
-  metrics: AnalyticsDto & { audienceSize: number };
-  analysis: {
-    summary: string;
-    keyInsights: string[];    // 1–8 items
-    recommendations: string[]; // 1–8 items
-  };
-}
-```
-
-**Errors:**
-
-| Status | Message |
-|--------|---------|
-| `400` | `validation failed: campaignId: ...` |
-| `404` | `campaign not found` |
-| `422` | `ai produced an invalid analysis, try again` |
-| `429` | `ai quota exceeded, wait a minute and try again` |
-| `500` | `ai is not configured, set GEMINI_API_KEY` |
-| `500` | `ai service is unavailable, try again shortly` |
-
----
-
 ## Frontend Integration Checklist
 
 ### Fetch wrapper example (TypeScript)
@@ -624,7 +580,6 @@ Copy or import from `src/types/dto.ts`:
 | `AnalyticsDto` | `GET /campaigns/:id/analytics` |
 | `SegmentFilters` | segment rules, AI filters |
 | `AiAudienceDto` | `POST /ai/audience-builder` |
-| `AiCampaignAnalystDto` | `POST /ai/campaign-analyst` |
 
 ---
 
@@ -632,19 +587,16 @@ Copy or import from `src/types/dto.ts`:
 
 | Endpoint | Status | Envelope | Shape |
 |----------|--------|----------|-------|
-| `GET /health` | ✅ 200 | N/A | `{ status: "ok" }` |
-| `GET /campaigns` | ✅ 200 | ✅ | `CampaignDto[]` |
-| `GET /campaigns/:id` | ✅ 200 | ✅ | `CampaignDetailDto` |
-| `GET /campaigns/:id/analytics` | ✅ 200 | ✅ | `AnalyticsDto` |
-| `GET /segments` | ✅ 200 | ✅ | `SegmentListItemDto[]` |
-| `GET /segments/:id` | ✅ 200 | ✅ | `SegmentDto` |
-| `POST /segments` | ✅ 200 | ✅ | `SegmentListItemDto` |
-| `POST /segments/preview` | ✅ 200 | ✅ | preview shape |
-| `POST /ai/audience-builder` | ✅ 200 | ✅ | `AiAudienceDto` |
-| `POST /ai/campaign-analyst` | ✅ 429* | ✅ | error envelope |
-| CORS preflight | ✅ | — | `access-control-allow-origin: http://localhost:5173` |
-
-\* Tested during audit; returned `429` due to Gemini quota — envelope and status code correct.
+| `GET /health` | 200 | N/A | `{ status: "ok" }` |
+| `GET /campaigns` | 200 | yes | `CampaignDto[]` |
+| `GET /campaigns/:id` | 200 | yes | `CampaignDetailDto` |
+| `GET /campaigns/:id/analytics` | 200 | yes | `AnalyticsDto` |
+| `GET /segments` | 200 | yes | `SegmentListItemDto[]` |
+| `GET /segments/:id` | 200 | yes | `SegmentDto` |
+| `POST /segments` | 200 | yes | `SegmentListItemDto` |
+| `POST /segments/preview` | 200 | yes | preview shape |
+| `POST /ai/audience-builder` | 200 | yes | `AiAudienceDto` |
+| CORS preflight | pass | — | `access-control-allow-origin: http://localhost:5173` |
 
 ---
 

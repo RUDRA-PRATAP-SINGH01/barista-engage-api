@@ -1,5 +1,6 @@
 import type { BusinessObjective } from "../types/audience-objective";
 import type { RecommendedChannel } from "../types/channel-recommendation.types";
+import type { AudienceEconomics } from "../types/audience-economics.types";
 import {
   AVG_ORDER_VALUE_INR,
   CAMPAIGN_SETUP_COST_INR,
@@ -11,11 +12,17 @@ import {
   OPEN_RATE_BENCHMARKS,
   REVENUE_RANGE_SPREAD,
 } from "../constants/roi-benchmarks";
+import {
+  deriveQualityMultipliers,
+  resolveOrderValue,
+} from "../utils/audience-quality-multipliers";
 
 export type RoiForecastInput = {
   audienceSize: number;
   channel: RecommendedChannel;
   objective: BusinessObjective;
+  audienceEconomics: AudienceEconomics;
+  populationEconomics: AudienceEconomics;
 };
 
 export type RoiForecastResult = {
@@ -29,6 +36,9 @@ export type RoiForecastResult = {
   };
   roi: number;
 };
+
+const MAX_EXPECTED_OPEN_RATE = 95;
+const MAX_EXPECTED_CTR = 22;
 
 function round1(value: number): number {
   return Math.round(value * 10) / 10;
@@ -45,15 +55,36 @@ export class AudienceRoiForecastService {
     const ctrBenchmark = CTR_BENCHMARKS[input.channel] / 100;
     const objectiveMultiplier = OBJECTIVE_ENGAGEMENT_MULTIPLIER[input.objective] ?? 1;
 
+    const { responseMultiplier, conversionMultiplier, revenueMultiplier } =
+      deriveQualityMultipliers(input.audienceEconomics, input.populationEconomics);
+
+    const orderValue = resolveOrderValue(
+      input.audienceEconomics,
+      input.populationEconomics,
+      AVG_ORDER_VALUE_INR,
+    );
+
     const expectedReach = round0(input.audienceSize * deliveryRate);
-    const expectedOpenRate = round1(openBenchmark * 100 * objectiveMultiplier);
-    const expectedCtr = round1(ctrBenchmark * 100 * objectiveMultiplier);
+    const expectedOpenRate = round1(
+      Math.min(
+        MAX_EXPECTED_OPEN_RATE,
+        openBenchmark * 100 * objectiveMultiplier * responseMultiplier,
+      ),
+    );
+    const expectedCtr = round1(
+      Math.min(
+        MAX_EXPECTED_CTR,
+        ctrBenchmark * 100 * objectiveMultiplier * responseMultiplier,
+      ),
+    );
 
     const expectedOpens = expectedReach * (expectedOpenRate / 100);
     const expectedClicks = expectedOpens * (expectedCtr / 100);
-    const expectedConversions = round0(expectedClicks * CLICK_TO_PURCHASE_RATE);
+    const rawConversions =
+      expectedClicks * CLICK_TO_PURCHASE_RATE * conversionMultiplier;
+    const expectedConversions = round0(rawConversions);
 
-    const baseRevenue = expectedConversions * AVG_ORDER_VALUE_INR;
+    const baseRevenue = rawConversions * orderValue * revenueMultiplier;
     const spread = baseRevenue * REVENUE_RANGE_SPREAD;
 
     const campaignCost =

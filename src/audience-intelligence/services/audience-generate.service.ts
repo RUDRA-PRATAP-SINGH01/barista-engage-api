@@ -1,5 +1,6 @@
 import type { AudienceBlueprintProvider } from "../providers/audience-blueprint.provider";
 import { blueprintFiltersToSegmentFilters } from "../utils/blueprint-to-segment-filters";
+import { AudienceEconomicsService } from "./audience-economics.service";
 import { AudiencePreviewService } from "./audience-preview.service";
 import { AudienceRoiForecastService } from "./audience-roi-forecast.service";
 import { AudienceStrategyService } from "./audience-strategy.service";
@@ -33,6 +34,7 @@ export class AudienceGenerateService {
   constructor(
     private readonly blueprintProvider: AudienceBlueprintProvider,
     private readonly previewService: AudiencePreviewService,
+    private readonly economicsService: AudienceEconomicsService,
     private readonly roiForecastService: AudienceRoiForecastService,
     private readonly strategyService: AudienceStrategyService,
   ) {}
@@ -44,15 +46,18 @@ export class AudienceGenerateService {
     const blueprint = blueprintResult.blueprint;
     const segmentFilters = blueprintFiltersToSegmentFilters(blueprint.filters);
 
-    const preview = await this.previewService.preview(
-      segmentFilters,
-      blueprint.recommendedChannel,
-    );
+    const [preview, audienceEconomics, populationEconomics] = await Promise.all([
+      this.previewService.preview(segmentFilters, blueprint.recommendedChannel),
+      this.economicsService.computeForFilters(segmentFilters),
+      this.economicsService.getPopulationBaseline(),
+    ]);
 
     const forecast = this.roiForecastService.forecast({
       audienceSize: preview.audienceSize,
       channel: blueprint.recommendedChannel,
       objective: blueprint.objective,
+      audienceEconomics,
+      populationEconomics,
     });
 
     const strategy = this.strategyService.buildStrategy(blueprint, preview, forecast);

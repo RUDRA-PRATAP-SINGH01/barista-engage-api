@@ -19,7 +19,7 @@ const rfmSegmentValues = [
   "Lost Customer",
 ] as const;
 
-const blueprintFilterSchema = z
+export const blueprintFilterSchema = z
   .object({
     field: z.enum(BLUEPRINT_FILTER_FIELDS),
     operator: z.enum(BLUEPRINT_OPERATORS),

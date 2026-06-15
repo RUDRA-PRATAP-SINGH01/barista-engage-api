@@ -2,7 +2,7 @@ import { prisma } from "../../lib/prisma";
 import { buildWhereClause } from "../../services/segment.service";
 import type { SegmentFilters } from "../../validators/segment.validator";
 import type { RecommendedChannel } from "../types/channel-recommendation.types";
-import { DELIVERY_RATE_BENCHMARKS, RFM_SEGMENTS } from "../constants/roi-benchmarks";
+import { DELIVERY_RATE_BENCHMARKS } from "../constants/roi-benchmarks";
 
 export type AudiencePreviewResult = {
   audienceSize: number;
@@ -44,25 +44,23 @@ export class AudiencePreviewService {
   private async computeSegmentDistribution(
     where: ReturnType<typeof buildWhereClause>,
   ): Promise<Record<string, number>> {
+    const grouped = await prisma.customerAnalytics.groupBy({
+      by: ["rfmSegment"],
+      where: { customer: where },
+      _count: { _all: true },
+    });
+
     const distribution: Record<string, number> = {};
+    for (const row of grouped) {
+      if (row._count._all > 0) {
+        distribution[row.rfmSegment] = row._count._all;
+      }
+    }
 
-    await Promise.all(
-      RFM_SEGMENTS.map(async (rfmSegment) => {
-        const count = await prisma.customer.count({
-          where: {
-            ...where,
-            analytics: { is: { rfmSegment } },
-          },
-        });
-        if (count > 0) {
-          distribution[rfmSegment] = count;
-        }
-      }),
-    );
-
+    const { analytics: _analytics, ...customerFields } = where;
     const withoutAnalytics = await prisma.customer.count({
       where: {
-        ...where,
+        ...customerFields,
         analytics: { is: null },
       },
     });

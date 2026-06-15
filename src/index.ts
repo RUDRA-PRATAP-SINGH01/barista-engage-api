@@ -8,8 +8,8 @@ import { segmentRoutes } from "./routes/segments";
 import { campaignRoutes } from "./routes/campaigns";
 import { deliveryRoutes } from "./routes/delivery";
 import { aiRoutes } from "./routes/ai";
-import { aiCampaignAnalystRoutes } from "./routes/ai-campaign-analyst";
 import { audienceBuilderRoutes } from "./routes/audience-builder";
+import { campaignStudioRoutes } from "./routes/campaign-studio";
 
 const app = new Hono();
 
@@ -30,8 +30,8 @@ app.route("/segments", segmentRoutes);
 app.route("/campaigns", campaignRoutes);
 app.route("/campaigns", deliveryRoutes);
 app.route("/ai", aiRoutes);
-app.route("/ai", aiCampaignAnalystRoutes);
 app.route("/audience-builder", audienceBuilderRoutes);
+app.route("/campaign-studio", campaignStudioRoutes);
 
 app.onError((err, c) => {
   console.error(err);
