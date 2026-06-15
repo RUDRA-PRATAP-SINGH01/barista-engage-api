@@ -1,0 +1,23 @@
+# Render Blueprint — Barista Engage API
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: barista-engage-api
+    runtime: node
+    branch: main
+    autoDeploy: true
+    plan: free
+    region: singapore
+    buildCommand: npm ci && npx prisma generate && npm run build
+    preDeployCommand: npx prisma migrate deploy
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false

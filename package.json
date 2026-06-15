@@ -2,9 +2,12 @@
   "name": "barista-engage-api",
   "version": "1.0.0",
   "description": "backend for barista os - ai native customer engagement platform for barista coffee",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/index.js --packages=external --sourcemap",
+    "start": "node dist/index.js",
+    "postinstall": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:report": "tsx prisma/seed.ts",
     "db:analytics": "tsx scripts/compute-analytics.ts",
@@ -16,6 +19,9 @@
   "author": "",
   "license": "ISC",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@google/genai": "^2.8.0",
     "@hono/node-server": "^2.0.4",
@@ -23,10 +29,11 @@
     "@prisma/client": "^7.8.0",
     "dotenv": "^17.4.2",
     "hono": "^4.12.25",
+    "prisma": "^7.8.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "prisma": "^7.8.0",
+    "esbuild": "^0.28.1",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3"
   }

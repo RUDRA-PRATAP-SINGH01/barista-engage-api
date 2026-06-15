@@ -4,7 +4,7 @@ Backend for **Barista Engage** — an AI-native customer engagement platform for
 
 The API powers the full marketing CRM loop: commerce data becomes per-customer intelligence, marketers describe a business goal in natural language, AI builds an audience, **Campaign Studio** turns that audience into a complete campaign (strategy, copy, creative), campaigns materialize into per-customer communications, a deterministic simulator produces engagement outcomes, and those outcomes feed back into the analytics that drive the next campaign.
 
-**Frontend:** [`barista-engage-web`](../barista-engage-web) (separate repo, CORS enabled for `http://localhost:5173` in development).
+**Frontend:** [`barista-engage-web`](../barista-engage-web) (separate repo; CORS origin from `FRONTEND_URL`, defaults to `http://localhost:5173` in dev).
 
 ---
 
@@ -816,7 +816,7 @@ flowchart LR
 | `DATABASE_URL` | Yes | Neon connection string with SSL |
 | `GEMINI_API_KEY` | Yes | AI features |
 | `PORT` | Auto | Set by hosting platform |
-| `FRONTEND_URL` | Recommended | Production frontend origin for CORS |
+| `FRONTEND_URL` | Yes | Production frontend origin for CORS |
 
 ### Frontend environment variables (build time)
 
@@ -846,7 +846,7 @@ Recommended `package.json` scripts for production:
 }
 ```
 
-**2. Update CORS** in `src/index.ts` to allow your production frontend origin (currently hardcoded to `http://localhost:5173`).
+**2. Set `FRONTEND_URL`** in Render to your deployed frontend URL (e.g. `https://barista-engage-web.onrender.com`).
 
 **3. Frontend**
 

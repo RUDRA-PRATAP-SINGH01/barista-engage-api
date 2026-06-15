@@ -1,4 +1,5 @@
 node_modules
+dist
 
 # never push env, it has the db credentials
 .env
