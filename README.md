@@ -825,28 +825,33 @@ flowchart LR
 | `VITE_API_BASE_URL` | Yes | Full API URL in production, e.g. `https://api.yourdomain.com` |
 | `VITE_ENABLE_CAMPAIGN_CREATIVE` | Optional | `false` to hide image generation when quota exhausted |
 
-### Deploy steps
+### Deploy on Render
 
-**1. API**
+`render.yaml` in the repo root defines the web service:
+
+| Setting | Value |
+|---------|-------|
+| `buildCommand` | `npm install && npx prisma generate && npm run build` |
+| `startCommand` | `npm start` → `node dist/index.js` |
+| `healthCheckPath` | `/health` |
+
+`esbuild` is a **production dependency** so `npm run build` works when Render omits devDependencies.
+
+**Prisma migrations (Free Tier):** `render.yaml` does not auto-run migrations. Apply schema once from your machine or the Render Shell:
 
 ```bash
-# On hosting platform after deploy:
-npx prisma generate
-npx prisma migrate deploy
-# If empty database:
+DATABASE_URL="your-neon-url" npx prisma migrate deploy
+```
+
+If the production database is empty after migrate:
+
+```bash
 npm run db:seed && npm run db:analytics && npm run db:insights
 ```
 
-Recommended `package.json` scripts for production:
+### Deploy steps
 
-```json
-{
-  "start": "tsx src/index.ts",
-  "postinstall": "prisma generate"
-}
-```
-
-**2. Set `FRONTEND_URL`** in Render to your deployed frontend URL (e.g. `https://barista-engage-web.onrender.com`).
+**1. API (Render)** in Render to your deployed frontend URL (e.g. `https://barista-engage-web.onrender.com`).
 
 **3. Frontend**
 
